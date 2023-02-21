@@ -44,14 +44,11 @@ $pdf->setSubject('TCPDF Tutorial');
 $pdf->setKeywords('TCPDF, PDF, example, test, guide');
 
 // Add a large number of pages with a long text in each of them
-for ($i = 1; $i <= 500; $i++) {
+for ($i = 1; $i <= 50000; $i++) {
     $pdf->AddPage();
-    $pdf->writeHTML(
-        str_repeat('<b>some</b> <i>content</i> ', 100),
-        true,
+    $pdf->Write(
         0,
-        true,
-        true
+        str_repeat('some content', 100)
     );
 }
 
