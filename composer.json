@@ -1,7 +1,7 @@
 {
-    "name": "tecnickcom/tcpdf",
+    "name": "garsaud/tcpdf_using_streams",
     "type": "library",
-    "description": "TCPDF is a PHP class for generating PDF documents and barcodes.",
+    "description": "Fork of the official TCPDF lib, but using PHP resources instead of in-memory buffer",
     "keywords": [
         "PDF",
         "tcpdf",
