@@ -307,17 +307,18 @@ class TCPDF_STATIC {
 
 	/**
 	 * Output input data and compress it if possible.
-	 * @param string $data Data to output.
+	 * @param resource $stream File to output.
 	 * @param int $length Data length in bytes.
 	 * @since 5.9.086
 	 * @public static
 	 */
-	public static function sendOutputData($data, $length) {
+	public static function sendOutputData($stream, $length) {
 		if (!isset($_SERVER['HTTP_ACCEPT_ENCODING']) OR empty($_SERVER['HTTP_ACCEPT_ENCODING'])) {
 			// the content length may vary if the server is using compression
 			header('Content-Length: '.$length);
 		}
-		echo $data;
+        rewind($stream);
+        fpassthru($stream);
 	}
 
 	/**
@@ -2124,7 +2125,7 @@ class TCPDF_STATIC {
 	 * Array of page formats
 	 * measures are calculated in this way: (inches * 72) or (millimeters * 72 / 25.4)
 	 * @public static
-	 * 
+	 *
      * @var array<string,float[]>
 	 */
 	public static $page_formats = array(

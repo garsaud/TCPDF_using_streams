@@ -162,11 +162,11 @@ class TCPDF {
 	 */
 	protected $pageobjects = array();
 
-	/**
-	 * Buffer holding in-memory PDF.
-	 * @protected
-	 */
-	protected $buffer;
+    /**
+     * Buffer holding in-file PDF
+     * @var resource
+     */
+    protected $bufferfile;
 
 	/**
 	 * Array containing pages.
@@ -1901,7 +1901,10 @@ class TCPDF {
 		$this->transfmrk[0] = array();
 		$this->pagedim = array();
 		$this->n = 2;
-		$this->buffer = '';
+        $this->bufferfile = fopen('php://temp', 'r+b');
+        if (!$this->bufferfile) {
+            throw new Exception('Couldn’t initialize TCPDF buffer');
+        }
 		$this->pages = array();
 		$this->state = 0;
 		$this->fonts = array();
@@ -7648,6 +7651,8 @@ class TCPDF {
 		}
 		$dest = strtoupper($dest);
 
+        rewind($this->bufferfile);
+
 		if ($this->sign) {
 			// *** apply digital signature to the document ***
 			// get the document content
@@ -7698,8 +7703,8 @@ class TCPDF {
 			$signature = current(unpack('H*', $signature));
 			$signature = str_pad($signature, $this->signature_max_length, '0');
 			// Add signature to the document
-			$this->buffer = substr($pdfdoc, 0, $byte_range[1]).'<'.$signature.'>'.substr($pdfdoc, $byte_range[1]);
-			$this->bufferlen = strlen($this->buffer);
+            $this->setBuffer(substr($pdfdoc, 0, $byte_range[1]).'<'.$signature.'>'.substr($pdfdoc, $byte_range[1]));
+            rewind($this->bufferfile);
 		}
 		switch($dest) {
 			case 'I': {
@@ -7720,9 +7725,9 @@ class TCPDF {
 					header('Last-Modified: '.gmdate('D, d M Y H:i:s').' GMT');
 					header('Content-Disposition: inline; filename="' . rawurlencode(basename($name)) . '"; ' .
 						'filename*=UTF-8\'\'' . rawurlencode(basename($name)));
-					TCPDF_STATIC::sendOutputData($this->getBuffer(), $this->bufferlen);
+					TCPDF_STATIC::sendOutputData($this->bufferfile, $this->bufferlen);
 				} else {
-					echo $this->getBuffer();
+                    fpassthru($this->bufferfile);
 				}
 				break;
 			}
@@ -7753,7 +7758,7 @@ class TCPDF {
 				header('Content-Disposition: attachment; filename="' . rawurlencode(basename($name)) . '"; ' .
 					'filename*=UTF-8\'\'' . rawurlencode(basename($name)));
 				header('Content-Transfer-Encoding: binary');
-				TCPDF_STATIC::sendOutputData($this->getBuffer(), $this->bufferlen);
+				TCPDF_STATIC::sendOutputData($this->bufferfile, $this->bufferlen);
 				break;
 			}
 			case 'F':
@@ -7764,9 +7769,16 @@ class TCPDF {
 				if (!$f) {
 					$this->Error('Unable to create output file: '.$name);
 				}
-				fwrite($f, $this->getBuffer(), $this->bufferlen);
+                $totalbytes = stream_copy_to_stream($this->bufferfile, $f);
+                if ($totalbytes === false) {
+                    throw new Exception('Couldn’t save PDF to local file');
+                }
 				fclose($f);
 				if ($dest == 'FI') {
+                    $file = fopen($name, 'rb');
+                    if ($file === false) {
+                        throw new Exception('Couldn’t reopen PDF from local file');
+                    }
 					// send headers to browser
 					header('Content-Type: application/pdf');
 					header('Cache-Control: private, must-revalidate, post-check=0, pre-check=0, max-age=1');
@@ -7775,8 +7787,12 @@ class TCPDF {
 					header('Expires: Sat, 26 Jul 1997 05:00:00 GMT'); // Date in the past
 					header('Last-Modified: '.gmdate('D, d M Y H:i:s').' GMT');
 					header('Content-Disposition: inline; filename="'.basename($name).'"');
-					TCPDF_STATIC::sendOutputData(file_get_contents($name), filesize($name));
+					TCPDF_STATIC::sendOutputData($file, $totalbytes);
 				} elseif ($dest == 'FD') {
+                    $file = fopen($name, 'rb');
+                    if ($file === false) {
+                        throw new Exception('Couldn’t reopen PDF from local file');
+                    }
 					// send headers to browser
 					if (ob_get_contents()) {
 						$this->Error('Some data has already been output, can\'t send PDF file');
@@ -7801,7 +7817,7 @@ class TCPDF {
 					// use the Content-Disposition header to supply a recommended filename
 					header('Content-Disposition: attachment; filename="'.basename($name).'"');
 					header('Content-Transfer-Encoding: binary');
-					TCPDF_STATIC::sendOutputData(file_get_contents($name), filesize($name));
+					TCPDF_STATIC::sendOutputData($file, $totalbytes);
 				}
 				break;
 			}
@@ -7819,6 +7835,10 @@ class TCPDF {
 				// returns PDF as a string
 				return $this->getBuffer();
 			}
+            case 'resource': {
+                // returns PDF as a resource
+                return $this->bufferfile;
+            }
 			default: {
 				$this->Error('Incorrect output destination: '.$dest);
 			}
@@ -7861,7 +7881,7 @@ class TCPDF {
 			'file_id',
 			'state',
 			'bufferlen',
-			'buffer',
+			'bufferfile',
 			'cached_files',
 			'imagekeys',
 			'sign',
@@ -10477,13 +10497,14 @@ class TCPDF {
 
 	/**
 	 * Returns the PDF data.
+     * @return resource
 	 * @public
 	 */
 	public function getPDFData() {
 		if ($this->state < 3) {
 			$this->Close();
 		}
-		return $this->buffer;
+		return $this->bufferfile;
 	}
 
 	/**
@@ -20884,8 +20905,11 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
 	 * @since 4.5.000 (2009-01-02)
 	 */
 	protected function setBuffer($data) {
-		$this->bufferlen += strlen($data);
-		$this->buffer .= $data;
+        $bytesWritten = fwrite($this->bufferfile, $data);
+        if ($bytesWritten === false) {
+            throw new Exception('Couldn’t write to buffer');
+        }
+		$this->bufferlen += $bytesWritten;
 	}
 
 	/**
@@ -20895,8 +20919,9 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
 	 * @since 5.5.000 (2010-06-22)
 	 */
 	protected function replaceBuffer($data) {
-		$this->bufferlen = strlen($data);
-		$this->buffer = $data;
+        ftruncate($this->bufferfile, 0);
+        rewind($this->bufferfile);
+        $this->setBuffer($data);
 	}
 
 	/**
@@ -20906,7 +20931,7 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
 	 * @since 4.5.000 (2009-01-02)
 	 */
 	protected function getBuffer() {
-		return $this->buffer;
+        return stream_get_contents($this->bufferfile);
 	}
 
 	/**
