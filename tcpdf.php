@@ -170,6 +170,7 @@ class TCPDF {
 
 	/**
 	 * Array containing pages.
+     * @var resource[]
 	 * @protected
 	 */
 	protected $pages = array();
@@ -7835,7 +7836,7 @@ class TCPDF {
 				// returns PDF as a string
 				return $this->getBuffer();
 			}
-            case 'resource': {
+            case 'STREAM': {
                 // returns PDF as a resource
                 return $this->bufferfile;
             }
@@ -20944,14 +20945,21 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
 	 */
 	protected function setPageBuffer($page, $data, $append=false) {
 		if ($append) {
-			$this->pages[$page] .= $data;
+            if (!isset($this->pagelen[$page])) {
+                $this->pagelen[$page] = 0;
+            }
+            if (!isset($this->pages[$page])) {
+                $this->pages[$page] = fopen('php://temp', 'r+b');
+            }
+            $bytesWritten = fwrite($this->pages[$page], $data);
+            $this->pagelen[$page] += $bytesWritten;
 		} else {
-			$this->pages[$page] = $data;
-		}
-		if ($append AND isset($this->pagelen[$page])) {
-			$this->pagelen[$page] += strlen($data);
-		} else {
-			$this->pagelen[$page] = strlen($data);
+            if (isset($this->pages[$page])) {
+                fclose($this->pages[$page]);
+            }
+            $this->pages[$page] = fopen('php://temp', 'r+b');
+            $bytesWritten = fwrite($this->pages[$page], $data);
+            $this->pagelen[$page] = $bytesWritten;
 		}
 	}
 
@@ -20964,7 +20972,7 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
 	 */
 	protected function getPageBuffer($page) {
 		if (isset($this->pages[$page])) {
-			return $this->pages[$page];
+			return stream_get_contents($this->pages[$page]);
 		}
 		return false;
 	}
@@ -21247,7 +21255,10 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
 			return false;
 		}
 		// delete current page
-		unset($this->pages[$page]);
+        if (isset($this->pages[$page])) {
+            fclose($this->pages[$page]);
+            unset($this->pages[$page]);
+        }
 		unset($this->pagedim[$page]);
 		unset($this->pagelen[$page]);
 		unset($this->intmrk[$page]);
@@ -21328,7 +21339,10 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
 				}
 			}
 			// remove last page
-			unset($this->pages[$this->numpages]);
+            if (isset($this->pages[$this->numpages])) {
+                fclose($this->pages[$this->numpages]);
+                unset($this->pages[$this->numpages]);
+            }
 			unset($this->pagedim[$this->numpages]);
 			unset($this->pagelen[$this->numpages]);
 			unset($this->intmrk[$this->numpages]);
