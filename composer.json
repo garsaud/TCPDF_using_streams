@@ -16,9 +16,14 @@
     "license": "LGPL-3.0-only",
     "authors": [
         {
+            "name": "Cyril Garsaud",
+            "email": "cyril.garsaud@gmail.com",
+            "role": "Author of the fork"
+        },
+        {
             "name": "Nicola Asuni",
             "email": "info@tecnick.com",
-            "role": "lead"
+            "role": "Author of the original"
         }
     ],
     "require": {
