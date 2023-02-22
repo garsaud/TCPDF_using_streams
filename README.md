@@ -11,6 +11,18 @@ composer require garsaud/tcpdf_using_streams
 # instead of composer require tecnickcom/tcpdf
 ```
 
+## Usage
+
+```bash
+$pdf = new TCPDF();
+
+// various modifications...
+
+$stream = $pdf->Output('STREAM');
+
+echo get_resource_type($stream); // "stream"
+```
+
 ## The original library
 
 https://github.com/tecnickcom/TCPDF
