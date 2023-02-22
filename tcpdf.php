@@ -20948,13 +20948,13 @@ Putting 1 is equivalent to putting 0 and calling Ln() just after. Default value:
             if (!isset($this->pagelen[$page])) {
                 $this->pagelen[$page] = 0;
             }
-            if (!isset($this->pages[$page])) {
+            if (!isset($this->pages[$page]) || !is_resource($this->pages[$page])) {
                 $this->pages[$page] = fopen('php://temp', 'r+b');
             }
             $bytesWritten = fwrite($this->pages[$page], $data);
             $this->pagelen[$page] += $bytesWritten;
 		} else {
-            if (isset($this->pages[$page])) {
+            if (isset($this->pages[$page]) && is_resource($this->pages[$page])) {
                 fclose($this->pages[$page]);
             }
             $this->pages[$page] = fopen('php://temp', 'r+b');
